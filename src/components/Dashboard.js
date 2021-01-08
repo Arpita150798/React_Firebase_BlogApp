@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { db , auth} from "../services/firebase";
+import { db, auth } from "../services/firebase";
 import { Link } from "react-router-dom";
 import Cookies from "universal-cookie";
 import Login from "./Login";
@@ -10,11 +10,9 @@ class Dashboard extends Component {
     const cookies = new Cookies();
     this.state = {
       user: cookies.get("User"),
-      blogContent: '',
-      userFromDb: {}
+      blogContent: "",
+      posts: [],
     };
-    this.handleChange = this.handleChange.bind(this);
-    this.handleSubmit = this.handleSubmit.bind(this);
   }
   logout = () => {
     auth.signOut();
@@ -24,37 +22,55 @@ class Dashboard extends Component {
     });
     cookies.remove("User", { path: "/", domain: "localhost" });
   };
-  handleChange(e) {
+  handleChange = (e) => {
     this.setState({
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
-  }
-  handleSubmit(e) {
+  };
+  handleSubmit = (e) => {
     e.preventDefault();
-   if (this.state.user) {
-    const contentRef = db.collection("blogcontents");
-      contentRef.add({
+    if (this.state.user) {
+      const contentRef = db.collection("blogcontents");
+      let newPost = {
         PostContent: this.state.blogContent,
         UserName: this.state.user.displayName,
+        UserEmail: this.state.user.email,
         dateAdded: new Date(),
-      }).then(function(docRef) {
-        console.log("Document written with ID: ", docRef.id);
-    })
-    .catch(function(error) {
-        console.error("Error adding document: ", error);
-    });
-   } else {
-    alert("No user logged In");
-    window.location = '/sign-in/' ;
-   }
-    this.setState({
-      blogContent: '',
-      username: ''
-    });
-  }
+      };
+
+      contentRef
+        .add(newPost)
+        .then(function (docRef) {
+          console.log("Document written with ID: ", docRef.id);
+        })
+        .catch(function (error) {
+          console.error("Error adding document: ", error);
+        });
+      var newPostDate = newPost.dateAdded.toDateString();
+      newPost.dateAdded = newPostDate;
+      this.setState({
+        posts: this.state.posts.concat(newPost),
+        blogContent: "",
+      });
+    } else {
+      alert("No user logged In");
+      window.location = "/sign-in/";
+    }
+  };
   componentDidMount() {
-  
-  
+    db.collection("blogcontents")
+      .where("UserEmail", "==", this.state.user.email)
+      .get()
+      .then((snapshot) => {
+        const allPosts = [];
+        snapshot.docs.forEach((doc) => {
+          let post = doc.data();
+          var dateAdded = new Date(post.dateAdded.toDate()).toDateString();
+          post.dateAdded = dateAdded;
+          allPosts.push(post);
+        });
+        this.setState({ posts: allPosts });
+      });
   }
   render() {
     return (
@@ -83,29 +99,44 @@ class Dashboard extends Component {
                   </ul>
                 </div>
               </div>
-            </nav> 
-            <div className="inner-home">
-              <form onSubmit={this.handleSubmit}>
-                <h3>Add your posts here</h3>
-                <div className="form-group">
-                  <textarea
-                    type="textarea"
-                    name="blogContent"
-                    className="form-control"
-                    placeholder="Write your thoughts"
-                    required
-                    value={this.state.blogContent}
-                    onChange={this.handleChange}></textarea>
+            </nav>
+            <div className="row">
+              <div className="col-sm-4">
+                <div className="inner-home">
+                  <form onSubmit={this.handleSubmit}>
+                    <h3>Add your posts here</h3>
+                    <div className="form-group">
+                      <textarea
+                        type="textarea"
+                        name="blogContent"
+                        className="form-control"
+                        placeholder="Write your thoughts"
+                        required
+                        value={this.state.blogContent}
+                        onChange={this.handleChange}
+                      ></textarea>
+                    </div>
+                    <button
+                      className="btn btn-primary btn-md btn-block"
+                      type="submit"
+                    >
+                      Post
+                    </button>
+                  </form>
                 </div>
-                <button className="btn btn-primary btn-md btn-block" type="submit">
-                  Post
-                </button>
-              </form>
+              </div>
+              <div className="col-sm-6">
+                {this.state.posts.map((post, index) => (
+                  <div className="blog-post" key={index}>
+                    <ul>
+                      {post.PostContent} <br></br>
+                      Added by: {post.UserName} @{post.dateAdded}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </div>
-            {/* <div className="blog-posts">
-              Hello World
-            </div> */}
-            </div>
+          </div>
         ) : (
           <Login></Login>
         )}
